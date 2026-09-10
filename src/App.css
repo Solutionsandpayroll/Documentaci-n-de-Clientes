@@ -1,0 +1,54 @@
+/* ==========================================
+   ESTILOS EXCLUSIVOS PARA IMPRESIÓN Y PDF
+   ========================================== */
+@media print {
+  /* Ocultar botones, controles y navegación al imprimir */
+  .no-print, 
+  button, 
+  input, 
+  select, 
+  nav, 
+  header, 
+  sidebar {
+    display: none !important;
+  }
+
+  /* Configuración del margen de la hoja A4 */
+  @page {
+    margin: 1.5cm;
+    size: letter portrait;
+  }
+
+  /* Ajustes para hoja limpia en blanco */
+  body {
+    background: #ffffff !important;
+    color: #000000 !important;
+    font-size: 11pt !important;
+    line-height: 1.5 !important;
+  }
+
+  /* Ocupar todo el ancho de la hoja */
+  .container, 
+  .print-full {
+    width: 100% !important;
+    max-width: 100% !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    box-shadow: none !important;
+  }
+
+  /* Evitar que las tablas, capturas de pantalla o bloques se corten por la mitad entre páginas */
+  img, 
+  table, 
+  tr, 
+  .section-block {
+    page-break-inside: avoid !important;
+    max-width: 100% !important;
+  }
+
+  /* Forzar que los títulos no queden solos al final de una página */
+  h1, h2, h3, h4 {
+    page-break-after: avoid !important;
+    color: #000000 !important;
+  }
+}

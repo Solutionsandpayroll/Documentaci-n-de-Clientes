@@ -295,24 +295,72 @@ export default function App() {
       </div>
     ) : null;
 
+  // ---- Flags para no imprimir títulos de secciones vacías ----
+  const hasClientInfo = [
+    formData.companyName,
+    formData.identificationNumber,
+    formData.legalRepresentative,
+    formData.economicActivity,
+    formData.address,
+    formData.city,
+    formData.country,
+    formData.client,
+    formData.contactName,
+    formData.contactEmail,
+    formData.payrollLink,
+  ].some((v) => v && v.toString().trim());
+
+  const hasConsiderations = formData.considerations && formData.considerations.trim();
+  const hasInstructions = formData.instructions && formData.instructions.trim();
+  const hasAnexos = formData.images && formData.images.length > 0;
+
   return (
     <div style={{ backgroundColor: '#f8fafc', minHeight: '100vh', fontFamily: "'Segoe UI', Calibri, Roboto, Helvetica, Arial, sans-serif", color: '#0f172a' }}>
 
       {/* REGLAS CSS PARA IMPRESIÓN — imitan el formato del documento Word (DDS) */}
       <style>{`
         @media print {
+          * {
+            -webkit-print-color-adjust: exact !important;
+            print-color-adjust: exact !important;
+            color-adjust: exact !important;
+          }
           .no-print { display: none !important; }
           .main-layout { display: block !important; }
           .print-full {
             width: 100% !important; max-width: 100% !important; margin: 0 !important; padding: 0 !important;
             box-shadow: none !important; border: none !important; border-radius: 0 !important; background-color: white !important;
           }
-          body { background-color: white !important; }
+          html, body { margin: 0 !important; padding: 0 !important; background-color: white !important; }
 
-          .print-logo-header { display: flex !important; justify-content: center; margin-bottom: 18px; }
-          .print-logo-header img { height: 50px; object-fit: contain; }
+          /* Logo del PDF: forma parte del flujo normal para que quede ARRIBA del título. */
+          .print-logo-header {
+            display: flex !important;
+            position: static !important;
+            width: 100% !important;
+            height: auto !important;
+            margin: 0 0 8px 0 !important;
+            padding: 0 !important;
+            align-items: center;
+            justify-content: center;
+            z-index: auto !important;
+            -webkit-print-color-adjust: exact !important;
+            print-color-adjust: exact !important;
+          }
+          .print-logo-header img {
+            height: 55px;
+            width: auto;
+            display: block;
+            object-fit: contain;
+            -webkit-print-color-adjust: exact !important;
+            print-color-adjust: exact !important;
+            filter: none !important;
+            -webkit-filter: none !important;
+          }
 
-          .print-doc-title { display: block !important; text-align: center; font-weight: 700; font-size: 15px; color: #000000; margin: 0 0 22px 0; }
+          .print-doc-title { display: block !important; text-align: center; font-weight: 700; font-size: 15px; color: #000000; margin: 0 0 6px 0; }
+
+          .print-updated-row { display: block !important; text-align: center; font-size: 11px; color: #334155; margin: 0 0 20px 0; }
 
           .print-section-heading { display: block !important; font-weight: 700; font-size: 13px; color: #000000; margin: 18px 0 8px 0; }
 
@@ -340,21 +388,34 @@ export default function App() {
           .collapsible-body { display: block !important; padding: 0 !important; }
           .collapsible-section { border: none !important; border-radius: 0 !important; margin-bottom: 0 !important; }
 
-          @page { size: letter; margin: 2.5cm 2.5cm 2.5cm 2.5cm; }
+          /* El margen de @page reserva en CADA hoja el espacio de arriba para el logo (evita depender del flujo normal,
+             que solo pintaba el logo en la primera página y dejaba un remanente que generaba una hoja en blanco).
+             Los bloques @bottom-center agregan la numeración de página en el pie de cada hoja.
+             Nota: el soporte de estos "margin boxes" depende del motor de impresión del navegador;
+             en Chrome/Edge recientes se ven al imprimir o exportar a PDF. */
+          @page {
+            size: letter;
+            margin: 3.3cm 2.5cm 2.5cm 2.5cm;
+            @bottom-center {
+              content: "Página " counter(page) " de " counter(pages);
+              font-size: 9px;
+              color: #475569;
+            }
+          }
         }
         @media screen {
           .print-logo-header, .print-doc-table { display: none; }
-          .print-only-text, .print-doc-title, .print-section-heading, .print-field-row { display: none; }
+          .print-only-text, .print-doc-title, .print-updated-row, .print-section-heading, .print-field-row { display: none; }
         }
       `}</style>
 
       {/* NAVBAR SUPERIOR CORPORATIVO (solo pantalla) */}
-      <header className="no-print" style={{ backgroundColor: '#ffffff', borderBottom: '1px solid #e2e8f0', padding: '14px 32px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+      <header className="no-print" style={{ backgroundColor: '#ffffff', borderBottom: '1px solid #e2e8f0', padding: '10px 32px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
           {!logoError ? (
-            <img src="/logo.jpeg" alt="Solutions & Payroll" style={{ height: '42px', objectFit: 'contain' }} onError={() => setLogoError(true)} />
+            <img src="/logo.jpeg" alt="Solutions & Payroll" style={{ height: '82px', objectFit: 'contain' }} onError={() => setLogoError(true)} />
           ) : (
-            <div style={{ display: 'flex', flexDirection: 'column', fontWeight: '800', lineHeight: '1.1', fontSize: '20px' }}>
+            <div style={{ display: 'flex', flexDirection: 'column', fontWeight: '800', lineHeight: '1.1', fontSize: '26px' }}>
               <span style={{ color: '#0f172a' }}>Solutions</span>
               <span style={{ color: '#0f172a' }}><span style={{ color: '#e11d48' }}>&</span> Payroll</span>
             </div>
@@ -515,12 +576,12 @@ export default function App() {
               </div>
             </div>
 
-            {/* LOGO DE IMPRESIÓN — en flujo normal, solo en la primera página (evita hojas en blanco) */}
+            {/* LOGO DE IMPRESIÓN — aparece arriba del título al imprimir */}
             <div className="print-logo-header">
               {!logoError ? (
                 <img src="/logo.jpeg" alt="Solutions & Payroll" />
               ) : (
-                <div style={{ fontWeight: '800', fontSize: '18px', color: '#0f172a' }}>
+                <div style={{ fontWeight: '800', fontSize: '22px', color: '#0f172a' }}>
                   Solutions <span style={{ color: '#e11d48' }}>&</span> Payroll
                 </div>
               )}
@@ -529,18 +590,29 @@ export default function App() {
             {/* TÍTULO DEL DOCUMENTO — solo visible al imprimir */}
             <div className="print-doc-title">Ficha de Documentación e Instructivos</div>
 
-            <div className="print-section-heading">Información del Cliente</div>
-            <PrintField label="Nombre de la Compañía" value={formData.companyName} />
-            <PrintField label="Número de Identificación" value={formData.identificationNumber} />
-            <PrintField label="Representante Legal" value={formData.legalRepresentative} />
-            <PrintField label="Actividad Económica" value={formData.economicActivity} />
-            <PrintField label="Dirección" value={formData.address} />
-            <PrintField label="Ciudad" value={formData.city} />
-            <PrintField label="País" value={formData.country} />
-            <PrintField label="Cliente" value={formData.client} />
-            <PrintField label="Contacto" value={formData.contactName} />
-            <PrintField label="Correo Electrónico Contacto" value={formData.contactEmail} />
-            <PrintField label="Enlace de Nómina" value={formData.payrollLink} />
+            {/* FECHA/HORA DE ACTUALIZACIÓN — solo visible al imprimir */}
+            {formData.lastUpdated && (
+              <div className="print-updated-row">
+                <strong>Última actualización:</strong> {formData.lastUpdated}
+              </div>
+            )}
+
+            {hasClientInfo && (
+              <>
+                <div className="print-section-heading">Información del Cliente</div>
+                <PrintField label="Nombre de la Compañía" value={formData.companyName} />
+                <PrintField label="Número de Identificación" value={formData.identificationNumber} />
+                <PrintField label="Representante Legal" value={formData.legalRepresentative} />
+                <PrintField label="Actividad Económica" value={formData.economicActivity} />
+                <PrintField label="Dirección" value={formData.address} />
+                <PrintField label="Ciudad" value={formData.city} />
+                <PrintField label="País" value={formData.country} />
+                <PrintField label="Cliente" value={formData.client} />
+                <PrintField label="Contacto" value={formData.contactName} />
+                <PrintField label="Correo Electrónico Contacto" value={formData.contactEmail} />
+                <PrintField label="Enlace de Nómina" value={formData.payrollLink} />
+              </>
+            )}
 
             <form onSubmit={handleSaveDocument}>
 
@@ -915,7 +987,9 @@ export default function App() {
               </CollapsibleSection>
 
               {/* --- Consideraciones y reglas --- */}
-              <div className="print-section-heading">Consideraciones y Reglas del Cliente</div>
+              {hasConsiderations && (
+                <div className="print-section-heading">Consideraciones y Reglas del Cliente</div>
+              )}
               <CollapsibleSection title="Consideraciones y Reglas del Cliente" isOpen={openSections.consideraciones} onToggle={() => toggleSection('consideraciones')}>
                 <p className="no-print" style={{ fontSize: '12px', color: '#64748b', margin: '0 0 8px 0' }}>
                   Detalles a considerar (correos de copia, fechas límite de entrega, requerimientos especiales).
@@ -929,13 +1003,15 @@ export default function App() {
                   className="no-print"
                   style={{ width: '100%', padding: '10px 12px', border: '1px solid #cbd5e1', borderRadius: '8px', fontSize: '13.5px', boxSizing: 'border-box', fontFamily: 'inherit', outline: 'none' }}
                 />
-                {formData.considerations.trim() && (
+                {hasConsiderations && (
                   <div className="print-only-text print-text-block">{formData.considerations}</div>
                 )}
               </CollapsibleSection>
 
               {/* --- Instrucciones operativas --- */}
-              <div className="print-section-heading">Instrucciones Operativas / Paso a Paso</div>
+              {hasInstructions && (
+                <div className="print-section-heading">Instrucciones Operativas / Paso a Paso</div>
+              )}
               <CollapsibleSection title="Instrucciones Operativas / Paso a Paso" isOpen={openSections.instrucciones} onToggle={() => toggleSection('instrucciones')}>
                 <p className="no-print" style={{ fontSize: '12px', color: '#64748b', margin: '0 0 8px 0' }}>
                   Secuencia detallada que se debe ejecutar para la atención o procesamiento del cliente.
@@ -949,13 +1025,15 @@ export default function App() {
                   className="no-print"
                   style={{ width: '100%', padding: '10px 12px', border: '1px solid #cbd5e1', borderRadius: '8px', fontSize: '13.5px', boxSizing: 'border-box', fontFamily: 'inherit', outline: 'none' }}
                 />
-                {formData.instructions.trim() && (
+                {hasInstructions && (
                   <div className="print-only-text print-text-block">{formData.instructions}</div>
                 )}
               </CollapsibleSection>
 
               {/* --- Anexos e imágenes --- */}
-              <div className="print-section-heading">Anexos</div>
+              {hasAnexos && (
+                <div className="print-section-heading">Anexos</div>
+              )}
               <CollapsibleSection title="Capturas de Pantalla y Anexos Visuales" isOpen={openSections.anexos} onToggle={() => toggleSection('anexos')}>
                 <div className="no-print" style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '8px' }}>
                   <label style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', padding: '6px 12px', backgroundColor: '#e2e8f0', color: '#0f172a', borderRadius: '6px', fontSize: '12.5px', fontWeight: '600', cursor: 'pointer' }}>

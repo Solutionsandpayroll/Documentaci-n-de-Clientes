@@ -28,6 +28,8 @@ const initialFormData = {
   costsProvisionsReport: '',
   monthlyReports: [],
   affiliationsNotes: '',
+  voluntaryPaymentSupportNotes: '',
+  voluntaryPaymentSupportImages: [],
   // Servicios adicionales (nuevo)
   additionalServices: [],
   // Reglas e instructivo (del segundo código)
@@ -48,6 +50,7 @@ export default function App() {
     info: true,
     resumen: false,
     reportes: false,
+    soportes: false,
     servicios: false,
     consideraciones: false,
     instrucciones: false,
@@ -227,6 +230,24 @@ export default function App() {
     setFormData((prev) => ({ ...prev, images: prev.images.filter((img) => img.id !== id) }));
   };
 
+  // ---- Soportes de Pago Voluntarios (imágenes) ----
+  const handleVoluntaryImageUpload = (e) => {
+    const files = Array.from(e.target.files);
+    files.forEach((file) => {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        const newImage = { id: Date.now() + Math.random(), url: reader.result, name: file.name };
+        setFormData((prev) => ({ ...prev, voluntaryPaymentSupportImages: [...prev.voluntaryPaymentSupportImages, newImage] }));
+      };
+      reader.readAsDataURL(file);
+    });
+    e.target.value = '';
+  };
+
+  const handleRemoveVoluntaryImage = (id) => {
+    setFormData((prev) => ({ ...prev, voluntaryPaymentSupportImages: prev.voluntaryPaymentSupportImages.filter((img) => img.id !== id) }));
+  };
+
   // ---- Guardar / seleccionar / eliminar documentos ----
   const handleSaveDocument = (e) => {
     if (e) e.preventDefault();
@@ -295,25 +316,6 @@ export default function App() {
       </div>
     ) : null;
 
-  // ---- Flags para no imprimir títulos de secciones vacías ----
-  const hasClientInfo = [
-    formData.companyName,
-    formData.identificationNumber,
-    formData.legalRepresentative,
-    formData.economicActivity,
-    formData.address,
-    formData.city,
-    formData.country,
-    formData.client,
-    formData.contactName,
-    formData.contactEmail,
-    formData.payrollLink,
-  ].some((v) => v && v.toString().trim());
-
-  const hasConsiderations = formData.considerations && formData.considerations.trim();
-  const hasInstructions = formData.instructions && formData.instructions.trim();
-  const hasAnexos = formData.images && formData.images.length > 0;
-
   return (
     <div style={{ backgroundColor: '#f8fafc', minHeight: '100vh', fontFamily: "'Segoe UI', Calibri, Roboto, Helvetica, Arial, sans-serif", color: '#0f172a' }}>
 
@@ -325,42 +327,44 @@ export default function App() {
             print-color-adjust: exact !important;
             color-adjust: exact !important;
           }
+          html, body {
+            margin: 0 !important;
+            padding: 0 !important;
+            background: #ffffff !important;
+          }
           .no-print { display: none !important; }
           .main-layout { display: block !important; }
           .print-full {
             width: 100% !important; max-width: 100% !important; margin: 0 !important; padding: 0 !important;
             box-shadow: none !important; border: none !important; border-radius: 0 !important; background-color: white !important;
           }
-          html, body { margin: 0 !important; padding: 0 !important; background-color: white !important; }
+          body { background-color: white !important; }
 
-          /* Logo del PDF: forma parte del flujo normal para que quede ARRIBA del título. */
+          /* LOGO REPETIDO EN TODAS LAS PÁGINAS (fixed = se vuelve a pintar en cada hoja) */
           .print-logo-header {
             display: flex !important;
-            position: static !important;
-            width: 100% !important;
-            height: auto !important;
-            margin: 0 0 8px 0 !important;
-            padding: 0 !important;
-            align-items: center;
-            justify-content: center;
-            z-index: auto !important;
-            -webkit-print-color-adjust: exact !important;
-            print-color-adjust: exact !important;
+            position: fixed !important;
+            top: 0 !important; left: 0 !important; right: 0 !important;
+            width: 100% !important; height: 2.5cm !important;
+            margin: 0 !important; padding: 0 !important;
+            background: #ffffff !important;
+            align-items: center !important; justify-content: center !important;
+            z-index: 999999 !important;
+            overflow: visible !important;
+            -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important;
           }
           .print-logo-header img {
-            height: 55px;
-            width: auto;
-            display: block;
-            object-fit: contain;
-            -webkit-print-color-adjust: exact !important;
-            print-color-adjust: exact !important;
-            filter: none !important;
-            -webkit-filter: none !important;
+            display: block !important;
+            width: auto !important; height: 55px !important;
+            max-width: 220px !important; max-height: 55px !important;
+            object-fit: contain !important;
+            filter: none !important; -webkit-filter: none !important;
+            opacity: 1 !important;
+            -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important;
           }
+          .print-logo-header div { display: block !important; }
 
-          .print-doc-title { display: block !important; text-align: center; font-weight: 700; font-size: 15px; color: #000000; margin: 0 0 6px 0; }
-
-          .print-updated-row { display: block !important; text-align: center; font-size: 11px; color: #334155; margin: 0 0 20px 0; }
+          .print-doc-title { display: block !important; text-align: center; font-weight: 700; font-size: 15px; color: #000000; margin: 0 0 22px 0; }
 
           .print-section-heading { display: block !important; font-weight: 700; font-size: 13px; color: #000000; margin: 18px 0 8px 0; }
 
@@ -388,32 +392,37 @@ export default function App() {
           .collapsible-body { display: block !important; padding: 0 !important; }
           .collapsible-section { border: none !important; border-radius: 0 !important; margin-bottom: 0 !important; }
 
-          /* El margen de @page reserva en CADA hoja el espacio de arriba para el logo (evita depender del flujo normal,
-             que solo pintaba el logo en la primera página y dejaba un remanente que generaba una hoja en blanco).
-             Los bloques @bottom-center agregan la numeración de página en el pie de cada hoja.
-             Nota: el soporte de estos "margin boxes" depende del motor de impresión del navegador;
-             en Chrome/Edge recientes se ven al imprimir o exportar a PDF. */
-          @page {
-            size: letter;
-            margin: 3.3cm 2.5cm 2.5cm 2.5cm;
-            @bottom-center {
-              content: "Página " counter(page) " de " counter(pages);
-              font-size: 9px;
-              color: #475569;
-            }
-          }
+          /* Dejamos espacio ARRIBA en TODAS las páginas para que el logo fijo nunca tape el contenido */
+          @page { size: letter; margin-top: 3.3cm; margin-right: 2.5cm; margin-bottom: 2.5cm; margin-left: 2.5cm; }
         }
         @media screen {
           .print-logo-header, .print-doc-table { display: none; }
-          .print-only-text, .print-doc-title, .print-updated-row, .print-section-heading, .print-field-row { display: none; }
+          .print-only-text, .print-doc-title, .print-section-heading, .print-field-row { display: none; }
+          /* Oculta en pantalla los bloques que son EXCLUSIVOS de impresión (ej: imágenes de reportes mensuales duplicadas) */
+          .print-only-block { display: none; }
+        }
+
+        /* ===================== RESPONSIVE (solo pantalla) ===================== */
+        @media screen and (max-width: 900px) {
+          .main-layout { grid-template-columns: 1fr !important; }
+        }
+        @media screen and (max-width: 640px) {
+          .two-col-grid { grid-template-columns: 1fr !important; }
+          .app-navbar { padding: 14px 16px !important; }
+          .app-panel-header { flex-direction: column; align-items: flex-start !important; }
+          .app-header-actions { width: 100%; }
+          .app-header-actions button { flex: 1 1 auto; justify-content: center; }
+        }
+        @media screen and (max-width: 480px) {
+          .print-full { padding: 16px 12px !important; }
         }
       `}</style>
 
       {/* NAVBAR SUPERIOR CORPORATIVO (solo pantalla) */}
-      <header className="no-print" style={{ backgroundColor: '#ffffff', borderBottom: '1px solid #e2e8f0', padding: '10px 32px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+      <header className="no-print app-navbar" style={{ backgroundColor: '#ffffff', borderBottom: '1px solid #e2e8f0', padding: '14px 32px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
           {!logoError ? (
-            <img src="/logo.jpeg" alt="Solutions & Payroll" style={{ height: '82px', objectFit: 'contain' }} onError={() => setLogoError(true)} />
+            <img src="/logo.jpeg" alt="Solutions & Payroll" style={{ height: '60px', objectFit: 'contain' }} onError={() => setLogoError(true)} />
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', fontWeight: '800', lineHeight: '1.1', fontSize: '26px' }}>
               <span style={{ color: '#0f172a' }}>Solutions</span>
@@ -541,7 +550,7 @@ export default function App() {
           {/* PANEL PRINCIPAL / FORMULARIO */}
           <div className="print-full" style={{ backgroundColor: '#ffffff', border: '1px solid #e2e8f0', borderRadius: '12px', padding: '28px', boxShadow: '0 1px 3px rgba(0,0,0,0.04)' }}>
 
-            <div className="no-print" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px', paddingBottom: '16px', borderBottom: '1px solid #f1f5f9' }}>
+            <div className="no-print app-panel-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px', paddingBottom: '16px', borderBottom: '1px solid #f1f5f9', flexWrap: 'wrap', gap: '14px' }}>
               <div>
                 <span style={{ fontSize: '13px', fontWeight: '600', color: '#0f172a' }}>
                   {formData.id ? `Editando: ${formData.companyName}` : 'Nueva Documentación de Cliente'}
@@ -553,7 +562,7 @@ export default function App() {
                 )}
               </div>
 
-              <div style={{ display: 'flex', gap: '10px' }}>
+              <div className="app-header-actions" style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
                 <button type="button" onClick={handleExportPDF} style={{ padding: '8px 16px', backgroundColor: '#f1f5f9', color: '#334155', border: '1px solid #cbd5e1', borderRadius: '8px', cursor: 'pointer', fontWeight: '600', fontSize: '13px', display: 'flex', alignItems: 'center', gap: '6px' }}>
                   <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                     <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
@@ -576,7 +585,7 @@ export default function App() {
               </div>
             </div>
 
-            {/* LOGO DE IMPRESIÓN — aparece arriba del título al imprimir */}
+            {/* LOGO DE IMPRESIÓN — fijo, se repite en TODAS las páginas al imprimir/exportar */}
             <div className="print-logo-header">
               {!logoError ? (
                 <img src="/logo.jpeg" alt="Solutions & Payroll" />
@@ -590,29 +599,18 @@ export default function App() {
             {/* TÍTULO DEL DOCUMENTO — solo visible al imprimir */}
             <div className="print-doc-title">Ficha de Documentación e Instructivos</div>
 
-            {/* FECHA/HORA DE ACTUALIZACIÓN — solo visible al imprimir */}
-            {formData.lastUpdated && (
-              <div className="print-updated-row">
-                <strong>Última actualización:</strong> {formData.lastUpdated}
-              </div>
-            )}
-
-            {hasClientInfo && (
-              <>
-                <div className="print-section-heading">Información del Cliente</div>
-                <PrintField label="Nombre de la Compañía" value={formData.companyName} />
-                <PrintField label="Número de Identificación" value={formData.identificationNumber} />
-                <PrintField label="Representante Legal" value={formData.legalRepresentative} />
-                <PrintField label="Actividad Económica" value={formData.economicActivity} />
-                <PrintField label="Dirección" value={formData.address} />
-                <PrintField label="Ciudad" value={formData.city} />
-                <PrintField label="País" value={formData.country} />
-                <PrintField label="Cliente" value={formData.client} />
-                <PrintField label="Contacto" value={formData.contactName} />
-                <PrintField label="Correo Electrónico Contacto" value={formData.contactEmail} />
-                <PrintField label="Enlace de Nómina" value={formData.payrollLink} />
-              </>
-            )}
+            <div className="print-section-heading">Información del Cliente</div>
+            <PrintField label="Nombre de la Compañía" value={formData.companyName} />
+            <PrintField label="Número de Identificación" value={formData.identificationNumber} />
+            <PrintField label="Representante Legal" value={formData.legalRepresentative} />
+            <PrintField label="Actividad Económica" value={formData.economicActivity} />
+            <PrintField label="Dirección" value={formData.address} />
+            <PrintField label="Ciudad" value={formData.city} />
+            <PrintField label="País" value={formData.country} />
+            <PrintField label="Cliente" value={formData.client} />
+            <PrintField label="Contacto" value={formData.contactName} />
+            <PrintField label="Correo Electrónico Contacto" value={formData.contactEmail} />
+            <PrintField label="Enlace de Nómina" value={formData.payrollLink} />
 
             <form onSubmit={handleSaveDocument}>
 
@@ -620,7 +618,7 @@ export default function App() {
               <CollapsibleSection title="Información del Cliente" isOpen={openSections.info} onToggle={() => toggleSection('info')} printHidden>
                 <FieldInput label="Nombre de la Compañía *" name="companyName" value={formData.companyName} onChange={handleChange} placeholder="Ej: Cliente ABC S.A.S" required />
 
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+                <div className="two-col-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
                   <FieldInput label="Número de Identificación" name="identificationNumber" value={formData.identificationNumber} onChange={handleChange} />
                   <FieldInput label="Actividad Económica" name="economicActivity" value={formData.economicActivity} onChange={handleChange} />
                 </div>
@@ -628,12 +626,12 @@ export default function App() {
                 <FieldInput label="Representante Legal" name="legalRepresentative" value={formData.legalRepresentative} onChange={handleChange} />
                 <FieldInput label="Dirección" name="address" value={formData.address} onChange={handleChange} />
 
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+                <div className="two-col-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
                   <FieldInput label="Ciudad" name="city" value={formData.city} onChange={handleChange} />
                   <FieldInput label="País" name="country" value={formData.country} onChange={handleChange} />
                 </div>
 
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+                <div className="two-col-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
                   <FieldInput label="Cliente" name="client" value={formData.client} onChange={handleChange} />
                   <FieldInput label="Contacto" name="contactName" value={formData.contactName} onChange={handleChange} />
                 </div>
@@ -800,7 +798,7 @@ export default function App() {
               <PrintTextBlock heading="Reporte Costos y Provisiones" value={formData.costsProvisionsReport} />
 
               {formData.monthlyReports.some((r) => (r.title && r.title.trim()) || (r.description && r.description.trim())) && (
-                <div className="print-field-block">
+                <div className="print-field-block print-only-block">
                   <div className="print-section-heading">Reportes Mensuales</div>
                   {formData.monthlyReports.map((r, index) =>
                     (r.title && r.title.trim()) || (r.description && r.description.trim()) ? (
@@ -829,13 +827,15 @@ export default function App() {
                 </div>
               )}
 
-              <PrintTextBlock heading="Afiliaciones a Seguridad Social" value={formData.affiliationsNotes} />
-
               <CollapsibleSection title="Reportes de Nómina y Seguridad Social" isOpen={openSections.reportes} onToggle={() => toggleSection('reportes')} printHidden>
                 <FieldTextarea label="Reportes de Nómina (introducción / ruta general)" name="payrollReportsInfo" value={formData.payrollReportsInfo} onChange={handleChange} rows={3} />
                 <FieldTextarea label="Nómina Día 31" name="day31Info" value={formData.day31Info} onChange={handleChange} rows={2} />
 
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+                <div style={{ fontSize: '13px', fontWeight: '700', color: '#0f172a', marginTop: '18px', marginBottom: '10px', borderTop: '1px solid #f1f5f9', paddingTop: '14px' }}>
+                  Generalidades de Seguridad Social
+                </div>
+
+                <div className="two-col-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
                   <FieldInput label="Fecha Vencimiento (Seg. Social)" name="ssDueDate" value={formData.ssDueDate} onChange={handleChange} placeholder="Ej: 9 día hábil" />
                   <FieldInput label="ARL" name="ssARL" value={formData.ssARL} onChange={handleChange} />
                 </div>
@@ -925,7 +925,58 @@ export default function App() {
                   ))
                 )}
 
+              </CollapsibleSection>
+
+              {/* --- Soportes de Pago Voluntarios y Afiliaciones a Seguridad Social (NUEVO) --- */}
+              {(formData.voluntaryPaymentSupportNotes.trim() || formData.affiliationsNotes.trim() || formData.voluntaryPaymentSupportImages.length > 0) && (
+                <div className="print-field-block">
+                  <div className="print-section-heading">Soportes de Pago Voluntarios y Afiliaciones a Seguridad Social</div>
+                  {formData.voluntaryPaymentSupportNotes.trim() && (
+                    <div className="print-only-text print-text-block">{formData.voluntaryPaymentSupportNotes}</div>
+                  )}
+                  {formData.affiliationsNotes.trim() && (
+                    <div className="print-only-text print-text-block">{formData.affiliationsNotes}</div>
+                  )}
+                  {formData.voluntaryPaymentSupportImages.length > 0 && (
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', marginTop: '6px' }}>
+                      {formData.voluntaryPaymentSupportImages.map((img) => (
+                        <div key={img.id} className="print-image-card" style={{ border: '1px solid #e2e8f0', padding: '4px', borderRadius: '6px' }}>
+                          <img src={img.url} alt={img.name} style={{ maxWidth: '260px', maxHeight: '170px', objectFit: 'contain' }} />
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              <CollapsibleSection title="Soportes de Pago Voluntarios y Afiliaciones a Seguridad Social" isOpen={openSections.soportes} onToggle={() => toggleSection('soportes')} printHidden>
+                <FieldTextarea label="Soportes de Pago Voluntarios" name="voluntaryPaymentSupportNotes" value={formData.voluntaryPaymentSupportNotes} onChange={handleChange} rows={3} />
                 <FieldTextarea label="Afiliaciones a Seguridad Social" name="affiliationsNotes" value={formData.affiliationsNotes} onChange={handleChange} rows={3} />
+
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '10px', marginBottom: '8px' }}>
+                  <label style={{ fontSize: '12px', fontWeight: '600', color: '#334155' }}>Imágenes de soporte</label>
+                  <label style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', padding: '5px 10px', backgroundColor: '#e2e8f0', color: '#0f172a', borderRadius: '6px', fontSize: '11.5px', fontWeight: '600', cursor: 'pointer' }}>
+                    + Añadir imagen
+                    <input type="file" accept="image/*" multiple onChange={handleVoluntaryImageUpload} style={{ display: 'none' }} />
+                  </label>
+                </div>
+
+                {formData.voluntaryPaymentSupportImages.length > 0 && (
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(140px, 1fr))', gap: '10px' }}>
+                    {formData.voluntaryPaymentSupportImages.map((img) => (
+                      <div key={img.id} style={{ border: '1px solid #e2e8f0', padding: '6px', borderRadius: '8px', backgroundColor: '#fff', position: 'relative' }}>
+                        <img src={img.url} alt={img.name} style={{ width: '100%', maxHeight: '110px', objectFit: 'contain', borderRadius: '4px' }} />
+                        <button
+                          type="button"
+                          onClick={() => handleRemoveVoluntaryImage(img.id)}
+                          style={{ position: 'absolute', top: '4px', right: '4px', backgroundColor: '#ef4444', color: 'white', border: 'none', borderRadius: '50%', width: '18px', height: '18px', cursor: 'pointer', fontSize: '10px' }}
+                        >
+                          X
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </CollapsibleSection>
 
               {/* --- Servicios Adicionales (NUEVO) --- */}
@@ -987,9 +1038,7 @@ export default function App() {
               </CollapsibleSection>
 
               {/* --- Consideraciones y reglas --- */}
-              {hasConsiderations && (
-                <div className="print-section-heading">Consideraciones y Reglas del Cliente</div>
-              )}
+              <div className="print-section-heading">Consideraciones y Reglas del Cliente</div>
               <CollapsibleSection title="Consideraciones y Reglas del Cliente" isOpen={openSections.consideraciones} onToggle={() => toggleSection('consideraciones')}>
                 <p className="no-print" style={{ fontSize: '12px', color: '#64748b', margin: '0 0 8px 0' }}>
                   Detalles a considerar (correos de copia, fechas límite de entrega, requerimientos especiales).
@@ -1003,15 +1052,13 @@ export default function App() {
                   className="no-print"
                   style={{ width: '100%', padding: '10px 12px', border: '1px solid #cbd5e1', borderRadius: '8px', fontSize: '13.5px', boxSizing: 'border-box', fontFamily: 'inherit', outline: 'none' }}
                 />
-                {hasConsiderations && (
+                {formData.considerations.trim() && (
                   <div className="print-only-text print-text-block">{formData.considerations}</div>
                 )}
               </CollapsibleSection>
 
               {/* --- Instrucciones operativas --- */}
-              {hasInstructions && (
-                <div className="print-section-heading">Instrucciones Operativas / Paso a Paso</div>
-              )}
+              <div className="print-section-heading">Instrucciones Operativas / Paso a Paso</div>
               <CollapsibleSection title="Instrucciones Operativas / Paso a Paso" isOpen={openSections.instrucciones} onToggle={() => toggleSection('instrucciones')}>
                 <p className="no-print" style={{ fontSize: '12px', color: '#64748b', margin: '0 0 8px 0' }}>
                   Secuencia detallada que se debe ejecutar para la atención o procesamiento del cliente.
@@ -1025,15 +1072,13 @@ export default function App() {
                   className="no-print"
                   style={{ width: '100%', padding: '10px 12px', border: '1px solid #cbd5e1', borderRadius: '8px', fontSize: '13.5px', boxSizing: 'border-box', fontFamily: 'inherit', outline: 'none' }}
                 />
-                {hasInstructions && (
+                {formData.instructions.trim() && (
                   <div className="print-only-text print-text-block">{formData.instructions}</div>
                 )}
               </CollapsibleSection>
 
               {/* --- Anexos e imágenes --- */}
-              {hasAnexos && (
-                <div className="print-section-heading">Anexos</div>
-              )}
+              <div className="print-section-heading">Anexos</div>
               <CollapsibleSection title="Capturas de Pantalla y Anexos Visuales" isOpen={openSections.anexos} onToggle={() => toggleSection('anexos')}>
                 <div className="no-print" style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '8px' }}>
                   <label style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', padding: '6px 12px', backgroundColor: '#e2e8f0', color: '#0f172a', borderRadius: '6px', fontSize: '12.5px', fontWeight: '600', cursor: 'pointer' }}>

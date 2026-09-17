@@ -698,13 +698,11 @@ function MainApp({ onLogout }) {
 
           .print-logo-header {
             display: flex !important;
-            position: fixed !important;
-            top: 0 !important; left: 0 !important; right: 0 !important;
-            width: 100% !important; height: 2.5cm !important;
-            margin: 0 !important; padding: 0 !important;
+            position: static !important;
+            width: 100% !important; height: auto !important;
+            margin: 0 0 20px 0 !important; padding: 0 !important;
             background: #ffffff !important;
             align-items: center !important; justify-content: center !important;
-            z-index: 999999 !important;
             overflow: visible !important;
             -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important;
           }
@@ -728,6 +726,7 @@ function MainApp({ onLogout }) {
           .print-field-row { display: block !important; font-size: 12.5px; color: #000000; margin: 3px 0; line-height: 1.5; }
 
           .print-only-text { display: block !important; }
+          .print-only-block { display: block !important; }
           .print-text-block {
             background: none !important; border: none !important; border-radius: 0 !important; padding: 0 !important;
             font-size: 12.5px !important; color: #000000 !important; line-height: 1.5 !important; text-align: justify;
@@ -747,7 +746,7 @@ function MainApp({ onLogout }) {
           .section-panel.print-form-element { display: none !important; }
           .app-sidebar, .app-menu { display: none !important; }
 
-          @page { size: letter; margin-top: 3.3cm; margin-right: 2.5cm; margin-bottom: 2.5cm; margin-left: 2.5cm; }
+          @page { size: letter; margin: 2cm; }
         }
         @media screen {
           .print-logo-header, .print-doc-table { display: none; }
@@ -996,23 +995,27 @@ function MainApp({ onLogout }) {
               )}
             </div>
 
-            <div className="print-doc-title">Ficha de Documentación e Instructivos</div>
+            {(formData.companyName.trim() || formData.identificationNumber.trim() || formData.legalRepresentative.trim() || formData.economicActivity.trim() || formData.address.trim() || formData.city.trim() || formData.country.trim() || formData.client.trim() || formData.contactName.trim() || formData.contactEmail.trim() || formData.payrollSoftwareName.trim()) && (
+              <>
+                <div className="print-doc-title">Ficha de Documentación e Instructivos</div>
 
-            <div className="print-section-heading">Información del Cliente</div>
-            <PrintField label="Nombre de la Compañía" value={formData.companyName} />
-            <PrintField label="Número de Identificación" value={formData.identificationNumber} />
-            <PrintField label="Representante Legal" value={formData.legalRepresentative} />
-            <PrintField label="Actividad Económica" value={formData.economicActivity} />
-            <PrintField label="Dirección" value={formData.address} />
-            <PrintField label="Ciudad" value={formData.city} />
-            <PrintField label="País" value={formData.country} />
-            <PrintField label="Cliente" value={formData.client} />
-            <PrintField label="Contacto" value={formData.contactName} />
-            <PrintField label="Correo Electrónico Contacto" value={formData.contactEmail} />
-            <PrintField
-              label="Software del Sistema"
-              value={formData.payrollSoftwareName ? `${formData.payrollSoftwareName} (${formData.payrollSoftwareOwnership === 'tercero' ? 'Tercero / del cliente' : 'Propio'})` : ''}
-            />
+                <div className="print-section-heading">Información del Cliente</div>
+                <PrintField label="Nombre de la Compañía" value={formData.companyName} />
+                <PrintField label="Número de Identificación" value={formData.identificationNumber} />
+                <PrintField label="Representante Legal" value={formData.legalRepresentative} />
+                <PrintField label="Actividad Económica" value={formData.economicActivity} />
+                <PrintField label="Dirección" value={formData.address} />
+                <PrintField label="Ciudad" value={formData.city} />
+                <PrintField label="País" value={formData.country} />
+                <PrintField label="Cliente" value={formData.client} />
+                <PrintField label="Contacto" value={formData.contactName} />
+                <PrintField label="Correo Electrónico Contacto" value={formData.contactEmail} />
+                <PrintField
+                  label="Software del Sistema"
+                  value={formData.payrollSoftwareName ? `${formData.payrollSoftwareName} (${formData.payrollSoftwareOwnership === 'tercero' ? 'Tercero / del cliente' : 'Propio'})` : ''}
+                />
+              </>
+            )}
 
             {(formData.rutFileName || formData.camaraFileName || formData.sabanaConceptosFileName || formData.sabanaConceptosLink.trim()) && (
               <div className="print-field-block">
@@ -1801,8 +1804,13 @@ function MainApp({ onLogout }) {
                 )}
               </SectionPanel>
 
-              <div className="print-section-heading">Consideraciones y Reglas del Cliente</div>
-              <SectionPanel id="consideraciones" activeSection={activeSection} title="Consideraciones y Reglas del Cliente">
+              {formData.considerations.trim() && (
+                <>
+                  <div className="print-section-heading">Consideraciones y Reglas del Cliente</div>
+                  <div className="print-only-text print-text-block">{formData.considerations}</div>
+                </>
+              )}
+              <SectionPanel id="consideraciones" activeSection={activeSection} title="Consideraciones y Reglas del Cliente" printHidden>
                 <p className="no-print" style={{ fontSize: '12px', color: '#64748b', margin: '0 0 8px 0' }}>
                   Detalles a considerar (correos de copia, fechas límite de entrega, requerimientos especiales).
                 </p>
@@ -1815,13 +1823,15 @@ function MainApp({ onLogout }) {
                   className="no-print"
                   style={{ width: '100%', padding: '10px 12px', border: '1px solid #cbd5e1', borderRadius: '8px', fontSize: '13.5px', boxSizing: 'border-box', fontFamily: 'inherit', outline: 'none' }}
                 />
-                {formData.considerations.trim() && (
-                  <div className="print-only-text print-text-block">{formData.considerations}</div>
-                )}
               </SectionPanel>
 
-              <div className="print-section-heading">Instrucciones Operativas / Paso a Paso</div>
-              <SectionPanel id="instrucciones" activeSection={activeSection} title="Instrucciones Operativas / Paso a Paso">
+              {formData.instructions.trim() && (
+                <>
+                  <div className="print-section-heading">Instrucciones Operativas / Paso a Paso</div>
+                  <div className="print-only-text print-text-block">{formData.instructions}</div>
+                </>
+              )}
+              <SectionPanel id="instrucciones" activeSection={activeSection} title="Instrucciones Operativas / Paso a Paso" printHidden>
                 <p className="no-print" style={{ fontSize: '12px', color: '#64748b', margin: '0 0 8px 0' }}>
                   Secuencia detallada que se debe ejecutar para la atención o procesamiento del cliente.
                 </p>
@@ -1834,13 +1844,21 @@ function MainApp({ onLogout }) {
                   className="no-print"
                   style={{ width: '100%', padding: '10px 12px', border: '1px solid #cbd5e1', borderRadius: '8px', fontSize: '13.5px', boxSizing: 'border-box', fontFamily: 'inherit', outline: 'none' }}
                 />
-                {formData.instructions.trim() && (
-                  <div className="print-only-text print-text-block">{formData.instructions}</div>
-                )}
               </SectionPanel>
 
-              <div className="print-section-heading">Anexos</div>
-              <SectionPanel id="anexos" activeSection={activeSection} title="Capturas de Pantalla y Anexos Visuales">
+              {formData.images.length > 0 && (
+                <div className="print-field-block">
+                  <div className="print-section-heading">Anexos</div>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '10px' }}>
+                    {formData.images.map((img) => (
+                      <div key={img.id} className="print-image-card" style={{ border: '1px solid #e2e8f0', padding: '6px', borderRadius: '6px' }}>
+                        <img src={img.url} alt={img.name} style={{ maxWidth: '240px', maxHeight: '170px', objectFit: 'contain' }} />
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+              <SectionPanel id="anexos" activeSection={activeSection} title="Capturas de Pantalla y Anexos Visuales" printHidden>
                 <div className="no-print" style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '8px' }}>
                   <label style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', padding: '6px 12px', backgroundColor: '#e2e8f0', color: '#0f172a', borderRadius: '6px', fontSize: '12.5px', fontWeight: '600', cursor: 'pointer' }}>
                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
@@ -1880,7 +1898,7 @@ function MainApp({ onLogout }) {
                         >
                           <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
                             <line x1="18" y1="6" x2="6" y2="18" />
-                            <line x1="6" y1="6" x2="18" y2="18" />
+                            <line x1="5" y1="12" x2="19" y2="12" />
                           </svg>
                         </button>
                         <p style={{ fontSize: '11px', color: '#64748b', margin: '6px 0 0 0', textOverflow: 'ellipsis', overflow: 'hidden', whiteSpace: 'nowrap' }}>

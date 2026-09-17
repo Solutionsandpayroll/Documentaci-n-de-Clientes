@@ -26,8 +26,6 @@ import {
 
 // ==========================================================
 // CONFIGURACIÓN DE FIREBASE
-// Reemplaza estos valores por los de tu proyecto en
-// https://console.firebase.google.com  ->  Configuración del proyecto -> "Tus apps"
 // ==========================================================
 const firebaseConfig = {
   apiKey: 'AIzaSyAZjcxUznPg5s80t07m_I3zOR-hYhX6ocI',
@@ -40,15 +38,21 @@ const firebaseConfig = {
 
 const firebaseApp = initializeApp(firebaseConfig);
 const auth = getAuth(firebaseApp);
-// Mantiene la sesión iniciada aunque se cierre el navegador
 setPersistence(auth, browserLocalPersistence);
 
 const firestore = getFirestore(firebaseApp);
 const storage = getStorage(firebaseApp);
 
+const ABSENCE_TYPE_LABELS = {
+  vacaciones: 'Vacaciones',
+  incapacidad: 'Incapacidad',
+  ausencia: 'Ausencia',
+  licencia: 'Licencia',
+};
+
 const initialFormData = {
   id: null,
-  // Información del cliente (del primer código)
+  // Información del cliente
   companyName: '',
   identificationNumber: '',
   legalRepresentative: '',
@@ -59,7 +63,7 @@ const initialFormData = {
   client: '',
   contactName: '',
   contactEmail: '',
-  // Software de nómina (antes "Enlace de Nómina")
+  // Software de nómina
   payrollSoftwareName: '',
   payrollSoftwareOwnership: 'propio', // 'propio' | 'tercero'
   // Documentos del cliente: RUT y Cámara de Comercio
@@ -69,15 +73,20 @@ const initialFormData = {
   camaraFileName: '',
   camaraFileUrl: '',
   camaraUpdatedAt: '',
-  // Sábana de conceptos (queda como link al Excel, no el archivo en sí)
+  // Sábana de conceptos (archivo Excel cargado O link de acceso)
   sabanaConceptosLink: '',
-  // Resumen y generalidades (del primer código)
+  sabanaConceptosFileName: '',
+  sabanaConceptosFileUrl: '',
+  sabanaConceptosUpdatedAt: '',
+  // Ausentismos (vacaciones, incapacidades, ausencias y licencias)
+  absenceRecords: [],
+  // Resumen y generalidades
   summary: '',
   payrollGeneralities: '',
   allowances: [],
-  // Provisiones (concepto + fórmula/opción de cálculo)
+  // Provisiones (concepto + fórmula/opción de cálculo + periodo de pago)
   provisions: [],
-  // Reportes de Nómina y Seguridad Social (nuevo)
+  // Reportes de Nómina y Seguridad Social
   payrollReportsInfo: '',
   day31Info: '',
   ssDueDate: '',
@@ -96,9 +105,9 @@ const initialFormData = {
   // Envío de Comprobantes
   comprobantesEnabled: 'no', // 'si' | 'no'
   comprobantesDescription: '',
-  // Servicios adicionales (nuevo)
+  // Servicios adicionales
   additionalServices: [],
-  // Reglas e instructivo (del segundo código)
+  // Reglas e instructivo
   considerations: '',
   instructions: '',
   // Anexos
@@ -112,6 +121,7 @@ const initialFormData = {
 const MENU_SECTIONS = [
   { id: 'info', label: 'Información del Cliente', icon: 'building' },
   { id: 'documentos', label: 'Documentos (RUT / C. Comercio)', icon: 'file' },
+  { id: 'ausentismos', label: 'Ausentismos', icon: 'calendar' },
   { id: 'resumen', label: 'Resumen y Conceptos', icon: 'list' },
   { id: 'provisiones', label: 'Provisiones', icon: 'calc' },
   { id: 'reportes', label: 'Reportes y Seguridad Social', icon: 'chart' },
@@ -130,6 +140,8 @@ function MenuIcon({ name }) {
       return <svg {...common}><path d="M3 21h18M5 21V7l7-4 7 4v14" /><path d="M9 21v-6h6v6" /></svg>;
     case 'file':
       return <svg {...common}><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" /><polyline points="14 2 14 8 20 8" /></svg>;
+    case 'calendar':
+      return <svg {...common}><rect x="3" y="4" width="18" height="18" rx="2" /><line x1="16" y1="2" x2="16" y2="6" /><line x1="8" y1="2" x2="8" y2="6" /><line x1="3" y1="10" x2="21" y2="10" /></svg>;
     case 'list':
       return <svg {...common}><line x1="8" y1="6" x2="21" y2="6" /><line x1="8" y1="12" x2="21" y2="12" /><line x1="8" y1="18" x2="21" y2="18" /><line x1="3" y1="6" x2="3.01" y2="6" /><line x1="3" y1="12" x2="3.01" y2="12" /><line x1="3" y1="18" x2="3.01" y2="18" /></svg>;
     case 'calc':
@@ -183,7 +195,7 @@ function MainApp({ onLogout }) {
     setFormData((prev) => ({ ...prev, [name]: value }));
   };
 
-  // ---- Auxilios (repetibles, cada uno con su propio resumen y su propia tabla) ----
+  // ---- Conceptos (antes "Auxilios") ----
   const handleAllowanceChange = (index, field, value) => {
     const updated = [...formData.allowances];
     updated[index] = { ...updated[index], [field]: value };
@@ -204,7 +216,7 @@ function MainApp({ onLogout }) {
     }));
   };
 
-  // ---- Tabla propia de cada Auxilio ----
+  // ---- Tabla de Partida/Contrapartida de cada Concepto (solo si partidaContrapartida === 'si') ----
   const handleAllowanceConceptChange = (allowanceIndex, conceptIndex, field, value) => {
     setFormData((prev) => {
       const updatedAllowances = [...prev.allowances];
@@ -222,7 +234,7 @@ function MainApp({ onLogout }) {
       const current = updatedAllowances[allowanceIndex];
       updatedAllowances[allowanceIndex] = {
         ...current,
-        conceptRows: [...(current.conceptRows || []), { id: Date.now() + Math.random(), code: '', name: '', observation: '' }],
+        conceptRows: [...(current.conceptRows || []), { id: Date.now() + Math.random(), tipo: 'partida', code: '', name: '', observation: '' }],
       };
       return { ...prev, allowances: updatedAllowances };
     });
@@ -240,7 +252,7 @@ function MainApp({ onLogout }) {
     });
   };
 
-  // ---- Provisiones (repetibles: concepto + fórmula/opción de cálculo) ----
+  // ---- Provisiones (concepto + fórmula/opción de cálculo + periodo de pago) ----
   const handleProvisionChange = (index, field, value) => {
     const updated = [...formData.provisions];
     updated[index] = { ...updated[index], [field]: value };
@@ -250,7 +262,7 @@ function MainApp({ onLogout }) {
   const addProvisionRow = () => {
     setFormData((prev) => ({
       ...prev,
-      provisions: [...prev.provisions, { id: Date.now() + Math.random(), concept: '', description: '' }],
+      provisions: [...prev.provisions, { id: Date.now() + Math.random(), concept: '', paymentPeriod: '', description: '' }],
     }));
   };
 
@@ -258,6 +270,27 @@ function MainApp({ onLogout }) {
     setFormData((prev) => ({
       ...prev,
       provisions: prev.provisions.filter((_, i) => i !== index),
+    }));
+  };
+
+  // ---- Ausentismos (Vacaciones, Incapacidades, Ausencias y Licencias) ----
+  const handleAbsenceChange = (index, field, value) => {
+    const updated = [...formData.absenceRecords];
+    updated[index] = { ...updated[index], [field]: value };
+    setFormData((prev) => ({ ...prev, absenceRecords: updated }));
+  };
+
+  const addAbsenceRow = () => {
+    setFormData((prev) => ({
+      ...prev,
+      absenceRecords: [...prev.absenceRecords, { id: Date.now() + Math.random(), type: 'vacaciones', startDate: '', endDate: '', description: '' }],
+    }));
+  };
+
+  const removeAbsenceRow = (index) => {
+    setFormData((prev) => ({
+      ...prev,
+      absenceRecords: prev.absenceRecords.filter((_, i) => i !== index),
     }));
   };
 
@@ -269,6 +302,8 @@ function MainApp({ onLogout }) {
 
     const clientId = formData.id || String(Date.now());
     const isNew = !formData.id;
+    const previousFileName = formData.rutFileName;
+    const previousClientId = formData.id;
 
     try {
       const fileRef = ref(storage, `clients/${clientId}/rut_${file.name}`);
@@ -282,6 +317,15 @@ function MainApp({ onLogout }) {
         rutFileUrl: url,
         rutUpdatedAt: new Date().toLocaleString('es-CO'),
       }));
+
+      if (previousFileName && previousClientId && previousFileName !== file.name) {
+        try {
+          const oldRef = ref(storage, `clients/${previousClientId}/rut_${previousFileName}`);
+          await deleteObject(oldRef);
+        } catch (err) {
+          console.warn('No se pudo borrar el RUT anterior en Storage:', err);
+        }
+      }
     } catch (err) {
       console.error('Error subiendo RUT a Firebase Storage:', err);
       alert('Hubo un error subiendo el RUT. Intenta de nuevo.');
@@ -307,6 +351,8 @@ function MainApp({ onLogout }) {
 
     const clientId = formData.id || String(Date.now());
     const isNew = !formData.id;
+    const previousFileName = formData.camaraFileName;
+    const previousClientId = formData.id;
 
     try {
       const fileRef = ref(storage, `clients/${clientId}/camara_${file.name}`);
@@ -320,6 +366,15 @@ function MainApp({ onLogout }) {
         camaraFileUrl: url,
         camaraUpdatedAt: new Date().toLocaleString('es-CO'),
       }));
+
+      if (previousFileName && previousClientId && previousFileName !== file.name) {
+        try {
+          const oldRef = ref(storage, `clients/${previousClientId}/camara_${previousFileName}`);
+          await deleteObject(oldRef);
+        } catch (err) {
+          console.warn('No se pudo borrar la Cámara de Comercio anterior en Storage:', err);
+        }
+      }
     } catch (err) {
       console.error('Error subiendo Cámara de Comercio a Firebase Storage:', err);
       alert('Hubo un error subiendo la Cámara de Comercio. Intenta de nuevo.');
@@ -336,6 +391,45 @@ function MainApp({ onLogout }) {
       }
     }
     setFormData((prev) => ({ ...prev, camaraFileName: '', camaraFileUrl: '', camaraUpdatedAt: '' }));
+  };
+
+  // ---- Carga de la Sábana de Conceptos (archivo Excel) a Firebase Storage ----
+  const handleSabanaUpload = async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    e.target.value = '';
+
+    const clientId = formData.id || String(Date.now());
+    const isNew = !formData.id;
+
+    try {
+      const fileRef = ref(storage, `clients/${clientId}/sabana_${file.name}`);
+      await uploadBytes(fileRef, file);
+      const url = await getDownloadURL(fileRef);
+
+      setFormData((prev) => ({
+        ...prev,
+        id: isNew ? clientId : prev.id,
+        sabanaConceptosFileName: file.name,
+        sabanaConceptosFileUrl: url,
+        sabanaConceptosUpdatedAt: new Date().toLocaleString('es-CO'),
+      }));
+    } catch (err) {
+      console.error('Error subiendo la Sábana de Conceptos a Firebase Storage:', err);
+      alert('Hubo un error subiendo la Sábana de Conceptos. Intenta de nuevo.');
+    }
+  };
+
+  const handleRemoveSabana = async () => {
+    if (formData.sabanaConceptosFileName && formData.id) {
+      try {
+        const fileRef = ref(storage, `clients/${formData.id}/sabana_${formData.sabanaConceptosFileName}`);
+        await deleteObject(fileRef);
+      } catch (err) {
+        console.warn('No se pudo borrar la Sábana de Conceptos en Storage (puede que ya no exista):', err);
+      }
+    }
+    setFormData((prev) => ({ ...prev, sabanaConceptosFileName: '', sabanaConceptosFileUrl: '', sabanaConceptosUpdatedAt: '' }));
   };
 
   // ---- Reportes Mensuales (repetibles, con imágenes propias en Firebase Storage) ----
@@ -564,7 +658,6 @@ function MainApp({ onLogout }) {
     (doc.client || '').toLowerCase().includes(searchTerm.toLowerCase())
   );
 
-  // Pequeño helper para no repetir la condición "solo imprime si tiene valor"
   const PrintField = ({ label, value }) =>
     value && value.toString().trim() ? (
       <div className="print-field-row">
@@ -583,7 +676,6 @@ function MainApp({ onLogout }) {
   return (
     <div style={{ backgroundColor: '#f8fafc', minHeight: '100vh', fontFamily: "'Segoe UI', Calibri, Roboto, Helvetica, Arial, sans-serif", color: '#0f172a' }}>
 
-      {/* REGLAS CSS PARA IMPRESIÓN — imitan el formato del documento Word (DDS) */}
       <style>{`
         @media print {
           * {
@@ -681,7 +773,6 @@ function MainApp({ onLogout }) {
         }
       `}</style>
 
-      {/* NAVBAR SUPERIOR CORPORATIVO (solo pantalla) */}
       <header className="no-print app-navbar" style={{ backgroundColor: '#ffffff', borderBottom: '1px solid #e2e8f0', padding: '14px 32px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
           {!logoError ? (
@@ -722,7 +813,6 @@ function MainApp({ onLogout }) {
 
         <div className="main-layout" style={{ display: 'grid', gridTemplateColumns: '280px 1fr', gap: '22px', alignItems: 'start' }}>
 
-          {/* ===== SIDEBAR: CLIENTES + MENÚ DE SECCIONES ===== */}
           <aside className="no-print app-sidebar" style={{ position: 'sticky', top: '20px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
 
             <div style={{ backgroundColor: '#ffffff', border: '1px solid #e2e8f0', borderRadius: '12px', padding: '16px', boxShadow: '0 1px 3px rgba(0,0,0,0.04)' }}>
@@ -853,14 +943,13 @@ function MainApp({ onLogout }) {
               {showInstructions && (
                 <div style={{ marginTop: '10px', fontSize: '11.5px', color: '#1e3a8a', lineHeight: '1.55' }}>
                   <p style={{ margin: '3px 0' }}>Elige un cliente (o crea uno nuevo) y navega por las secciones del menú.</p>
-                  <p style={{ margin: '3px 0' }}>En <strong>Documentos</strong> se cargan el RUT y la Cámara de Comercio actualizados.</p>
+                  <p style={{ margin: '3px 0' }}>En <strong>Documentos</strong> se cargan el RUT, la Cámara de Comercio y la Sábana de Conceptos.</p>
                   <p style={{ margin: '3px 0' }}>Recuerda <strong>Guardar</strong> antes de cambiar de cliente. Con <strong>Exportar PDF</strong> sale la ficha completa, no solo la sección visible.</p>
                 </div>
               )}
             </div>
           </aside>
 
-          {/* PANEL PRINCIPAL / FORMULARIO */}
           <div className="print-full" style={{ backgroundColor: '#ffffff', border: '1px solid #e2e8f0', borderRadius: '12px', padding: '28px', boxShadow: '0 1px 3px rgba(0,0,0,0.04)' }}>
 
             <div className="no-print app-panel-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px', paddingBottom: '16px', borderBottom: '1px solid #f1f5f9', flexWrap: 'wrap', gap: '14px' }}>
@@ -925,12 +1014,32 @@ function MainApp({ onLogout }) {
               value={formData.payrollSoftwareName ? `${formData.payrollSoftwareName} (${formData.payrollSoftwareOwnership === 'tercero' ? 'Tercero / del cliente' : 'Propio'})` : ''}
             />
 
-            {(formData.rutFileName || formData.camaraFileName || formData.sabanaConceptosLink.trim()) && (
+            {(formData.rutFileName || formData.camaraFileName || formData.sabanaConceptosFileName || formData.sabanaConceptosLink.trim()) && (
               <div className="print-field-block">
                 <div className="print-section-heading">Documentos del Cliente</div>
                 <PrintField label="RUT" value={formData.rutFileName ? `${formData.rutFileName} (actualizado: ${formData.rutUpdatedAt})` : ''} />
                 <PrintField label="Cámara de Comercio" value={formData.camaraFileName ? `${formData.camaraFileName} (actualizado: ${formData.camaraUpdatedAt})` : ''} />
+                <PrintField label="Sábana de Conceptos (archivo)" value={formData.sabanaConceptosFileName ? `${formData.sabanaConceptosFileName} (actualizado: ${formData.sabanaConceptosUpdatedAt})` : ''} />
                 <PrintField label="Sábana de Conceptos (link)" value={formData.sabanaConceptosLink} />
+              </div>
+            )}
+
+            {formData.absenceRecords.some((a) => (a.description && a.description.trim()) || a.startDate || a.endDate) && (
+              <div className="print-field-block">
+                <div className="print-section-heading">Ausentismos</div>
+                <table className="print-doc-table">
+                  <tbody>
+                    {formData.absenceRecords
+                      .filter((a) => (a.description && a.description.trim()) || a.startDate || a.endDate)
+                      .map((a, index) => (
+                        <tr key={a.id || index}>
+                          <td style={{ width: '20%' }}>{ABSENCE_TYPE_LABELS[a.type] || a.type}</td>
+                          <td style={{ width: '25%' }}>{a.startDate}{a.endDate ? ` a ${a.endDate}` : ''}</td>
+                          <td style={{ width: '55%' }}>{a.description}</td>
+                        </tr>
+                      ))}
+                  </tbody>
+                </table>
               </div>
             )}
 
@@ -998,13 +1107,101 @@ function MainApp({ onLogout }) {
                   />
                 </div>
 
-                <FieldInput
-                  label="Sábana de Conceptos (link al Excel)"
-                  name="sabanaConceptosLink"
-                  value={formData.sabanaConceptosLink}
-                  onChange={handleChange}
-                  placeholder="Pega aquí el link del Excel (SharePoint, Drive, etc.)"
-                />
+                <div style={{ borderTop: '1px solid #f1f5f9', marginTop: '18px', paddingTop: '16px' }}>
+                  <label style={{ display: 'block', fontSize: '13px', fontWeight: '700', color: '#0f172a', marginBottom: '10px' }}>
+                    Sábana de Conceptos
+                  </label>
+                  <p className="no-print" style={{ fontSize: '12px', color: '#64748b', margin: '0 0 10px 0' }}>
+                    Puedes subir el Excel directamente, o dejar solo el link de acceso si prefieres mantenerlo en SharePoint/Drive.
+                  </p>
+                  <FileUploadField
+                    label="Archivo Excel de la Sábana de Conceptos"
+                    fileName={formData.sabanaConceptosFileName}
+                    fileUrl={formData.sabanaConceptosFileUrl}
+                    updatedAt={formData.sabanaConceptosUpdatedAt}
+                    onUpload={handleSabanaUpload}
+                    onRemove={handleRemoveSabana}
+                    accept=".xlsx,.xls,.csv"
+                    hint="Excel (.xlsx, .xls) o CSV"
+                  />
+                  <FieldInput
+                    label="O Link de Acceso (si no subes el archivo)"
+                    name="sabanaConceptosLink"
+                    value={formData.sabanaConceptosLink}
+                    onChange={handleChange}
+                    placeholder="Pega aquí el link del Excel (SharePoint, Drive, etc.)"
+                  />
+                </div>
+              </SectionPanel>
+
+              <SectionPanel id="ausentismos" activeSection={activeSection} title="Ausentismos" printHidden>
+                <p className="no-print" style={{ fontSize: '12px', color: '#64748b', margin: '0 0 12px 0' }}>
+                  Registra vacaciones, incapacidades, ausencias y licencias relevantes para la nómina del cliente.
+                </p>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
+                  <label style={{ fontSize: '13px', fontWeight: '600', color: '#334155' }}>Registros de Ausentismo</label>
+                  <button
+                    type="button"
+                    onClick={addAbsenceRow}
+                    style={{ padding: '6px 12px', backgroundColor: '#e2e8f0', color: '#0f172a', border: 'none', borderRadius: '6px', fontSize: '12.5px', fontWeight: '600', cursor: 'pointer' }}
+                  >
+                    + Agregar Registro
+                  </button>
+                </div>
+
+                {formData.absenceRecords.length === 0 ? (
+                  <p style={{ fontSize: '12px', color: '#94a3b8', margin: '0 0 12px 0' }}>No hay registros de ausentismo agregados.</p>
+                ) : (
+                  formData.absenceRecords.map((absence, index) => (
+                    <div key={absence.id || index} style={{ border: '1px solid #e2e8f0', borderRadius: '8px', padding: '12px', marginBottom: '10px', position: 'relative' }}>
+                      <button
+                        type="button"
+                        onClick={() => removeAbsenceRow(index)}
+                        style={{ position: 'absolute', top: '8px', right: '8px', backgroundColor: '#ef4444', color: 'white', border: 'none', borderRadius: '50%', width: '22px', height: '22px', cursor: 'pointer', fontSize: '11px' }}
+                      >
+                        X
+                      </button>
+
+                      <FieldSelect
+                        label="Tipo de Ausentismo"
+                        name={`absenceType-${index}`}
+                        value={absence.type}
+                        onChange={(e) => handleAbsenceChange(index, 'type', e.target.value)}
+                        options={[
+                          { value: 'vacaciones', label: 'Vacaciones' },
+                          { value: 'incapacidad', label: 'Incapacidad' },
+                          { value: 'ausencia', label: 'Ausencia' },
+                          { value: 'licencia', label: 'Licencia' },
+                        ]}
+                      />
+
+                      <div className="two-col-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+                        <FieldInput
+                          label="Fecha Inicio"
+                          name={`absenceStart-${index}`}
+                          type="date"
+                          value={absence.startDate}
+                          onChange={(e) => handleAbsenceChange(index, 'startDate', e.target.value)}
+                        />
+                        <FieldInput
+                          label="Fecha Fin"
+                          name={`absenceEnd-${index}`}
+                          type="date"
+                          value={absence.endDate}
+                          onChange={(e) => handleAbsenceChange(index, 'endDate', e.target.value)}
+                        />
+                      </div>
+
+                      <FieldTextarea
+                        label="Descripción / Detalle"
+                        name={`absenceDescription-${index}`}
+                        value={absence.description}
+                        onChange={(e) => handleAbsenceChange(index, 'description', e.target.value)}
+                        rows={2}
+                      />
+                    </div>
+                  ))
+                )}
               </SectionPanel>
 
               <PrintTextBlock heading="Resumen" value={formData.summary} />
@@ -1032,13 +1229,14 @@ function MainApp({ onLogout }) {
                         {a.description && a.description.trim() && (
                           <div className="print-only-text print-text-block">{a.description}</div>
                         )}
-                        {rows.length > 0 && (
+                        {a.partidaContrapartida === 'si' && rows.length > 0 && (
                           <table className="print-doc-table">
                             <tbody>
                               {rows.map((row, rIndex) => (
                                 <tr key={row.id || rIndex}>
-                                  <td style={{ width: '45%' }}>{row.code} {row.name}</td>
-                                  <td style={{ width: '55%' }}>{row.observation}</td>
+                                  <td style={{ width: '20%' }}>{row.tipo === 'contrapartida' ? 'Contrapartida' : 'Partida'}</td>
+                                  <td style={{ width: '30%' }}>{row.code} {row.name}</td>
+                                  <td style={{ width: '50%' }}>{row.observation}</td>
                                 </tr>
                               ))}
                             </tbody>
@@ -1116,54 +1314,71 @@ function MainApp({ onLogout }) {
                         rows={3}
                       />
 
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '10px', marginBottom: '8px' }}>
-                        <label style={{ fontSize: '12px', fontWeight: '600', color: '#334155' }}>Tabla del Concepto</label>
-                        <button
-                          type="button"
-                          onClick={() => addAllowanceConceptRow(index)}
-                          style={{ padding: '5px 10px', backgroundColor: '#e2e8f0', color: '#0f172a', border: 'none', borderRadius: '6px', fontSize: '11.5px', fontWeight: '600', cursor: 'pointer' }}
-                        >
-                          + Agregar Fila
-                        </button>
-                      </div>
+                      {allowance.partidaContrapartida === 'si' && (
+                        <>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '10px', marginBottom: '8px' }}>
+                            <label style={{ fontSize: '12px', fontWeight: '600', color: '#334155' }}>
+                              Partida y Contrapartida (conceptos)
+                            </label>
+                            <button
+                              type="button"
+                              onClick={() => addAllowanceConceptRow(index)}
+                              style={{ padding: '5px 10px', backgroundColor: '#e2e8f0', color: '#0f172a', border: 'none', borderRadius: '6px', fontSize: '11.5px', fontWeight: '600', cursor: 'pointer' }}
+                            >
+                              + Agregar Fila
+                            </button>
+                          </div>
+                          <p className="no-print" style={{ fontSize: '11px', color: '#94a3b8', margin: '0 0 8px 0' }}>
+                            Ej: Partida: Devengo/People - Concepto C080 · Contrapartida: Deducción - Retribución - S096
+                          </p>
 
-                      {(allowance.conceptRows || []).length === 0 ? (
-                        <p style={{ fontSize: '11.5px', color: '#94a3b8', margin: '0 0 4px 0' }}>Sin filas en la tabla de este concepto.</p>
-                      ) : (
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                          {(allowance.conceptRows || []).map((row, rIndex) => (
-                            <div key={row.id || rIndex} style={{ display: 'grid', gridTemplateColumns: '80px 1fr 1fr 28px', gap: '6px', alignItems: 'center' }}>
-                              <input
-                                type="text"
-                                placeholder="Código"
-                                value={row.code}
-                                onChange={(e) => handleAllowanceConceptChange(index, rIndex, 'code', e.target.value)}
-                                style={{ padding: '7px 8px', border: '1px solid #cbd5e1', borderRadius: '6px', fontSize: '12.5px', outline: 'none' }}
-                              />
-                              <input
-                                type="text"
-                                placeholder="Nombre concepto"
-                                value={row.name}
-                                onChange={(e) => handleAllowanceConceptChange(index, rIndex, 'name', e.target.value)}
-                                style={{ padding: '7px 8px', border: '1px solid #cbd5e1', borderRadius: '6px', fontSize: '12.5px', outline: 'none' }}
-                              />
-                              <input
-                                type="text"
-                                placeholder="Observación"
-                                value={row.observation}
-                                onChange={(e) => handleAllowanceConceptChange(index, rIndex, 'observation', e.target.value)}
-                                style={{ padding: '7px 8px', border: '1px solid #cbd5e1', borderRadius: '6px', fontSize: '12.5px', outline: 'none' }}
-                              />
-                              <button
-                                type="button"
-                                onClick={() => removeAllowanceConceptRow(index, rIndex)}
-                                style={{ backgroundColor: '#ef4444', color: 'white', border: 'none', borderRadius: '6px', width: '26px', height: '26px', cursor: 'pointer', fontSize: '11px' }}
-                              >
-                                X
-                              </button>
+                          {(allowance.conceptRows || []).length === 0 ? (
+                            <p style={{ fontSize: '11.5px', color: '#94a3b8', margin: '0 0 4px 0' }}>Sin filas registradas.</p>
+                          ) : (
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                              {(allowance.conceptRows || []).map((row, rIndex) => (
+                                <div key={row.id || rIndex} style={{ display: 'grid', gridTemplateColumns: '120px 80px 1fr 1fr 28px', gap: '6px', alignItems: 'center' }}>
+                                  <select
+                                    value={row.tipo || 'partida'}
+                                    onChange={(e) => handleAllowanceConceptChange(index, rIndex, 'tipo', e.target.value)}
+                                    style={{ padding: '7px 6px', border: '1px solid #cbd5e1', borderRadius: '6px', fontSize: '12px', outline: 'none', backgroundColor: '#fff' }}
+                                  >
+                                    <option value="partida">Partida</option>
+                                    <option value="contrapartida">Contrapartida</option>
+                                  </select>
+                                  <input
+                                    type="text"
+                                    placeholder="Código"
+                                    value={row.code}
+                                    onChange={(e) => handleAllowanceConceptChange(index, rIndex, 'code', e.target.value)}
+                                    style={{ padding: '7px 8px', border: '1px solid #cbd5e1', borderRadius: '6px', fontSize: '12.5px', outline: 'none' }}
+                                  />
+                                  <input
+                                    type="text"
+                                    placeholder="Nombre concepto"
+                                    value={row.name}
+                                    onChange={(e) => handleAllowanceConceptChange(index, rIndex, 'name', e.target.value)}
+                                    style={{ padding: '7px 8px', border: '1px solid #cbd5e1', borderRadius: '6px', fontSize: '12.5px', outline: 'none' }}
+                                  />
+                                  <input
+                                    type="text"
+                                    placeholder="Observación"
+                                    value={row.observation}
+                                    onChange={(e) => handleAllowanceConceptChange(index, rIndex, 'observation', e.target.value)}
+                                    style={{ padding: '7px 8px', border: '1px solid #cbd5e1', borderRadius: '6px', fontSize: '12.5px', outline: 'none' }}
+                                  />
+                                  <button
+                                    type="button"
+                                    onClick={() => removeAllowanceConceptRow(index, rIndex)}
+                                    style={{ backgroundColor: '#ef4444', color: 'white', border: 'none', borderRadius: '6px', width: '26px', height: '26px', cursor: 'pointer', fontSize: '11px' }}
+                                  >
+                                    X
+                                  </button>
+                                </div>
+                              ))}
                             </div>
-                          ))}
-                        </div>
+                          )}
+                        </>
                       )}
                     </div>
                   ))
@@ -1178,6 +1393,9 @@ function MainApp({ onLogout }) {
                       <div key={p.id || index} className="print-field-block">
                         {p.concept && p.concept.trim() && (
                           <div className="print-only-text" style={{ fontWeight: 700, fontSize: '12.5px', margin: '6px 0 2px 0' }}>{p.concept}</div>
+                        )}
+                        {p.paymentPeriod && p.paymentPeriod.trim() && (
+                          <div className="print-field-row"><strong>Periodo de Pago:</strong> {p.paymentPeriod}</div>
                         )}
                         {p.description && p.description.trim() && (
                           <div className="print-only-text print-text-block">{p.description}</div>
@@ -1228,8 +1446,17 @@ function MainApp({ onLogout }) {
                           style={{ width: '100%', padding: '10px 12px', border: '1px solid #cbd5e1', borderRadius: '8px', fontSize: '13.5px', boxSizing: 'border-box', outline: 'none' }}
                         />
                       </div>
+
+                      <FieldInput
+                        label="Periodo de Pago"
+                        name={`provisionPeriod-${index}`}
+                        value={provision.paymentPeriod || ''}
+                        onChange={(e) => handleProvisionChange(index, 'paymentPeriod', e.target.value)}
+                        placeholder="Ej: Diciembre / Semestral / Anual..."
+                      />
+
                       <FieldTextarea
-                        label="Descripción / Opción de Cálculo"
+                        label="Descripción / Fórmula de Cálculo"
                         name={`provisionDescription-${index}`}
                         value={provision.description}
                         onChange={(e) => handleProvisionChange(index, 'description', e.target.value)}
@@ -1756,7 +1983,7 @@ function FieldSelect({ label, name, value, onChange, options = [] }) {
   );
 }
 
-function FileUploadField({ label, fileName, fileUrl, updatedAt, onUpload, onRemove }) {
+function FileUploadField({ label, fileName, fileUrl, updatedAt, onUpload, onRemove, accept = '.pdf,.png,.jpg,.jpeg,.doc,.docx', hint = 'PDF, imagen o Word' }) {
   return (
     <div style={{ marginBottom: '12px' }}>
       <label style={{ display: 'block', fontSize: '13px', fontWeight: '600', color: '#334155', marginBottom: '6px' }}>
@@ -1791,7 +2018,7 @@ function FileUploadField({ label, fileName, fileUrl, updatedAt, onUpload, onRemo
           )}
           <label style={{ display: 'inline-block', marginTop: '8px', fontSize: '11.5px', color: '#0f172a', backgroundColor: '#e2e8f0', padding: '4px 10px', borderRadius: '6px', fontWeight: '600', cursor: 'pointer' }}>
             Reemplazar archivo
-            <input type="file" accept=".pdf,.png,.jpg,.jpeg,.doc,.docx" onChange={onUpload} style={{ display: 'none' }} />
+            <input type="file" accept={accept} onChange={onUpload} style={{ display: 'none' }} />
           </label>
         </div>
       ) : (
@@ -1807,8 +2034,8 @@ function FileUploadField({ label, fileName, fileUrl, updatedAt, onUpload, onRemo
             <line x1="12" y1="3" x2="12" y2="15" />
           </svg>
           <span style={{ fontSize: '12.5px', color: '#2563eb', fontWeight: '600' }}>Subir archivo</span>
-          <span style={{ fontSize: '11px', color: '#64748b', marginTop: '2px' }}>PDF, imagen o Word</span>
-          <input type="file" accept=".pdf,.png,.jpg,.jpeg,.doc,.docx" onChange={onUpload} style={{ display: 'none' }} />
+          <span style={{ fontSize: '11px', color: '#64748b', marginTop: '2px' }}>{hint}</span>
+          <input type="file" accept={accept} onChange={onUpload} style={{ display: 'none' }} />
         </label>
       )}
     </div>

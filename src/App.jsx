@@ -16,13 +16,6 @@ import {
   deleteDoc,
   onSnapshot,
 } from 'firebase/firestore';
-import {
-  getStorage,
-  ref,
-  uploadBytes,
-  getDownloadURL,
-  deleteObject,
-} from 'firebase/storage';
 
 // ==========================================================
 // CONFIGURACIÓN DE FIREBASE
@@ -41,7 +34,43 @@ const auth = getAuth(firebaseApp);
 setPersistence(auth, browserLocalPersistence);
 
 const firestore = getFirestore(firebaseApp);
-const storage = getStorage(firebaseApp);
+
+// ==========================================================
+// CONFIGURACIÓN DE CLOUDINARY (subida de archivos)
+// ==========================================================
+const CLOUDINARY_CLOUD_NAME = 'fyesthmz';
+const CLOUDINARY_UPLOAD_PRESET = 'portal_dds_uploads';
+
+/**
+ * Sube un archivo a Cloudinary usando un preset "unsigned" (sin firmar).
+ * Usa el endpoint "auto" para que Cloudinary detecte solo si es imagen,
+ * PDF, Word, Excel, etc.
+ * Devuelve { url, publicId, fileName }.
+ */
+async function uploadToCloudinary(file, folder) {
+  const formDataBody = new FormData();
+  formDataBody.append('file', file);
+  formDataBody.append('upload_preset', CLOUDINARY_UPLOAD_PRESET);
+  if (folder) {
+    formDataBody.append('folder', folder);
+  }
+
+  const response = await fetch(
+    `https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD_NAME}/auto/upload`,
+    {
+      method: 'POST',
+      body: formDataBody,
+    }
+  );
+
+  if (!response.ok) {
+    const errText = await response.text();
+    throw new Error(`Error subiendo a Cloudinary: ${errText}`);
+  }
+
+  const data = await response.json();
+  return { url: data.secure_url, publicId: data.public_id, fileName: file.name };
+}
 
 const ABSENCE_TYPE_LABELS = {
   vacaciones: 'Vacaciones',
@@ -294,7 +323,7 @@ function MainApp({ onLogout }) {
     }));
   };
 
-  // ---- Carga de RUT y Cámara de Comercio a Firebase Storage ----
+  // ---- Carga de RUT y Cámara de Comercio a Cloudinary ----
   const handleRutUpload = async (e) => {
     const file = e.target.files[0];
     if (!file) return;
@@ -302,13 +331,9 @@ function MainApp({ onLogout }) {
 
     const clientId = formData.id || String(Date.now());
     const isNew = !formData.id;
-    const previousFileName = formData.rutFileName;
-    const previousClientId = formData.id;
 
     try {
-      const fileRef = ref(storage, `clients/${clientId}/rut_${file.name}`);
-      await uploadBytes(fileRef, file);
-      const url = await getDownloadURL(fileRef);
+      const { url } = await uploadToCloudinary(file, `clients/${clientId}`);
 
       setFormData((prev) => ({
         ...prev,
@@ -317,30 +342,16 @@ function MainApp({ onLogout }) {
         rutFileUrl: url,
         rutUpdatedAt: new Date().toLocaleString('es-CO'),
       }));
-
-      if (previousFileName && previousClientId && previousFileName !== file.name) {
-        try {
-          const oldRef = ref(storage, `clients/${previousClientId}/rut_${previousFileName}`);
-          await deleteObject(oldRef);
-        } catch (err) {
-          console.warn('No se pudo borrar el RUT anterior en Storage:', err);
-        }
-      }
     } catch (err) {
-      console.error('Error subiendo RUT a Firebase Storage:', err);
+      console.error('Error subiendo RUT a Cloudinary:', err);
       alert('Hubo un error subiendo el RUT. Intenta de nuevo.');
     }
   };
 
-  const handleRemoveRut = async () => {
-    if (formData.rutFileName && formData.id) {
-      try {
-        const fileRef = ref(storage, `clients/${formData.id}/rut_${formData.rutFileName}`);
-        await deleteObject(fileRef);
-      } catch (err) {
-        console.warn('No se pudo borrar el archivo en Storage (puede que ya no exista):', err);
-      }
-    }
+  const handleRemoveRut = () => {
+    // Nota: con un preset "unsigned" de Cloudinary no se puede borrar el
+    // archivo remoto desde el navegador (requeriría el api_secret). Solo
+    // se quita la referencia; el archivo queda huérfano en Cloudinary.
     setFormData((prev) => ({ ...prev, rutFileName: '', rutFileUrl: '', rutUpdatedAt: '' }));
   };
 
@@ -351,13 +362,9 @@ function MainApp({ onLogout }) {
 
     const clientId = formData.id || String(Date.now());
     const isNew = !formData.id;
-    const previousFileName = formData.camaraFileName;
-    const previousClientId = formData.id;
 
     try {
-      const fileRef = ref(storage, `clients/${clientId}/camara_${file.name}`);
-      await uploadBytes(fileRef, file);
-      const url = await getDownloadURL(fileRef);
+      const { url } = await uploadToCloudinary(file, `clients/${clientId}`);
 
       setFormData((prev) => ({
         ...prev,
@@ -366,34 +373,17 @@ function MainApp({ onLogout }) {
         camaraFileUrl: url,
         camaraUpdatedAt: new Date().toLocaleString('es-CO'),
       }));
-
-      if (previousFileName && previousClientId && previousFileName !== file.name) {
-        try {
-          const oldRef = ref(storage, `clients/${previousClientId}/camara_${previousFileName}`);
-          await deleteObject(oldRef);
-        } catch (err) {
-          console.warn('No se pudo borrar la Cámara de Comercio anterior en Storage:', err);
-        }
-      }
     } catch (err) {
-      console.error('Error subiendo Cámara de Comercio a Firebase Storage:', err);
+      console.error('Error subiendo Cámara de Comercio a Cloudinary:', err);
       alert('Hubo un error subiendo la Cámara de Comercio. Intenta de nuevo.');
     }
   };
 
-  const handleRemoveCamara = async () => {
-    if (formData.camaraFileName && formData.id) {
-      try {
-        const fileRef = ref(storage, `clients/${formData.id}/camara_${formData.camaraFileName}`);
-        await deleteObject(fileRef);
-      } catch (err) {
-        console.warn('No se pudo borrar el archivo en Storage (puede que ya no exista):', err);
-      }
-    }
+  const handleRemoveCamara = () => {
     setFormData((prev) => ({ ...prev, camaraFileName: '', camaraFileUrl: '', camaraUpdatedAt: '' }));
   };
 
-  // ---- Carga de la Sábana de Conceptos (archivo Excel) a Firebase Storage ----
+  // ---- Carga de la Sábana de Conceptos (archivo Excel) a Cloudinary ----
   const handleSabanaUpload = async (e) => {
     const file = e.target.files[0];
     if (!file) return;
@@ -403,9 +393,7 @@ function MainApp({ onLogout }) {
     const isNew = !formData.id;
 
     try {
-      const fileRef = ref(storage, `clients/${clientId}/sabana_${file.name}`);
-      await uploadBytes(fileRef, file);
-      const url = await getDownloadURL(fileRef);
+      const { url } = await uploadToCloudinary(file, `clients/${clientId}`);
 
       setFormData((prev) => ({
         ...prev,
@@ -415,24 +403,16 @@ function MainApp({ onLogout }) {
         sabanaConceptosUpdatedAt: new Date().toLocaleString('es-CO'),
       }));
     } catch (err) {
-      console.error('Error subiendo la Sábana de Conceptos a Firebase Storage:', err);
+      console.error('Error subiendo la Sábana de Conceptos a Cloudinary:', err);
       alert('Hubo un error subiendo la Sábana de Conceptos. Intenta de nuevo.');
     }
   };
 
-  const handleRemoveSabana = async () => {
-    if (formData.sabanaConceptosFileName && formData.id) {
-      try {
-        const fileRef = ref(storage, `clients/${formData.id}/sabana_${formData.sabanaConceptosFileName}`);
-        await deleteObject(fileRef);
-      } catch (err) {
-        console.warn('No se pudo borrar la Sábana de Conceptos en Storage (puede que ya no exista):', err);
-      }
-    }
+  const handleRemoveSabana = () => {
     setFormData((prev) => ({ ...prev, sabanaConceptosFileName: '', sabanaConceptosFileUrl: '', sabanaConceptosUpdatedAt: '' }));
   };
 
-  // ---- Reportes Mensuales (repetibles, con imágenes propias en Firebase Storage) ----
+  // ---- Reportes Mensuales (repetibles, con imágenes propias en Cloudinary) ----
   const handleMonthlyReportChange = (index, field, value) => {
     const updated = [...formData.monthlyReports];
     updated[index] = { ...updated[index], [field]: value };
@@ -465,10 +445,8 @@ function MainApp({ onLogout }) {
     for (const file of files) {
       try {
         const imgId = `${Date.now()}_${Math.random().toString(36).slice(2)}`;
-        const fileRef = ref(storage, `clients/${clientId}/reports/${imgId}_${file.name}`);
-        await uploadBytes(fileRef, file);
-        const url = await getDownloadURL(fileRef);
-        const newImage = { id: imgId, url, name: file.name, path: fileRef.fullPath };
+        const { url } = await uploadToCloudinary(file, `clients/${clientId}/reports`);
+        const newImage = { id: imgId, url, name: file.name };
 
         setFormData((prev) => {
           const updated = [...prev.monthlyReports];
@@ -482,16 +460,7 @@ function MainApp({ onLogout }) {
     }
   };
 
-  const handleRemoveReportImage = async (reportIndex, imageId) => {
-    const report = formData.monthlyReports[reportIndex];
-    const img = (report.images || []).find((i) => i.id === imageId);
-    if (img && img.path) {
-      try {
-        await deleteObject(ref(storage, img.path));
-      } catch (err) {
-        console.warn('No se pudo borrar la imagen en Storage:', err);
-      }
-    }
+  const handleRemoveReportImage = (reportIndex, imageId) => {
     setFormData((prev) => {
       const updated = [...prev.monthlyReports];
       updated[reportIndex] = {
@@ -523,7 +492,7 @@ function MainApp({ onLogout }) {
     }));
   };
 
-  // ---- Imágenes (anexos generales) en Firebase Storage ----
+  // ---- Imágenes (anexos generales) en Cloudinary ----
   const handleImageUpload = async (e) => {
     const files = Array.from(e.target.files);
     e.target.value = '';
@@ -533,10 +502,8 @@ function MainApp({ onLogout }) {
     for (const file of files) {
       try {
         const imgId = `${Date.now()}_${Math.random().toString(36).slice(2)}`;
-        const fileRef = ref(storage, `clients/${clientId}/anexos/${imgId}_${file.name}`);
-        await uploadBytes(fileRef, file);
-        const url = await getDownloadURL(fileRef);
-        const newImage = { id: imgId, url, name: file.name, path: fileRef.fullPath };
+        const { url } = await uploadToCloudinary(file, `clients/${clientId}/anexos`);
+        const newImage = { id: imgId, url, name: file.name };
 
         setFormData((prev) => ({
           ...prev,
@@ -550,19 +517,11 @@ function MainApp({ onLogout }) {
     }
   };
 
-  const handleRemoveImage = async (id) => {
-    const img = formData.images.find((i) => i.id === id);
-    if (img && img.path) {
-      try {
-        await deleteObject(ref(storage, img.path));
-      } catch (err) {
-        console.warn('No se pudo borrar la imagen en Storage:', err);
-      }
-    }
+  const handleRemoveImage = (id) => {
     setFormData((prev) => ({ ...prev, images: prev.images.filter((i) => i.id !== id) }));
   };
 
-  // ---- Soportes de Pago Voluntarios (imágenes) en Firebase Storage ----
+  // ---- Soportes de Pago Voluntarios (imágenes) en Cloudinary ----
   const handleVoluntaryImageUpload = async (e) => {
     const files = Array.from(e.target.files);
     e.target.value = '';
@@ -572,10 +531,8 @@ function MainApp({ onLogout }) {
     for (const file of files) {
       try {
         const imgId = `${Date.now()}_${Math.random().toString(36).slice(2)}`;
-        const fileRef = ref(storage, `clients/${clientId}/voluntarios/${imgId}_${file.name}`);
-        await uploadBytes(fileRef, file);
-        const url = await getDownloadURL(fileRef);
-        const newImage = { id: imgId, url, name: file.name, path: fileRef.fullPath };
+        const { url } = await uploadToCloudinary(file, `clients/${clientId}/voluntarios`);
+        const newImage = { id: imgId, url, name: file.name };
 
         setFormData((prev) => ({
           ...prev,
@@ -589,15 +546,7 @@ function MainApp({ onLogout }) {
     }
   };
 
-  const handleRemoveVoluntaryImage = async (id) => {
-    const img = formData.voluntaryPaymentSupportImages.find((i) => i.id === id);
-    if (img && img.path) {
-      try {
-        await deleteObject(ref(storage, img.path));
-      } catch (err) {
-        console.warn('No se pudo borrar la imagen en Storage:', err);
-      }
-    }
+  const handleRemoveVoluntaryImage = (id) => {
     setFormData((prev) => ({
       ...prev,
       voluntaryPaymentSupportImages: prev.voluntaryPaymentSupportImages.filter((i) => i.id !== id),

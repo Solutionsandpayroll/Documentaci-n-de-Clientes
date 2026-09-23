@@ -92,6 +92,7 @@ const initialFormData = {
   client: '',
   contactName: '',
   contactEmail: '',
+  contactPhone: '',
   // Software de nómina
   payrollSoftwareName: '',
   payrollSoftwareOwnership: 'propio', // 'propio' | 'tercero'
@@ -959,6 +960,7 @@ function MainApp({ onLogout }) {
                 <PrintField label="Cliente" value={formData.client} />
                 <PrintField label="Contacto" value={formData.contactName} />
                 <PrintField label="Correo Electrónico Contacto" value={formData.contactEmail} />
+                <PrintField label="Teléfono de Contacto" value={formData.contactPhone} />
                 <PrintField
                   label="Software del Sistema"
                   value={formData.payrollSoftwareName ? `${formData.payrollSoftwareName} (${formData.payrollSoftwareOwnership === 'tercero' ? 'Tercero / del cliente' : 'Propio'})` : ''}
@@ -1018,7 +1020,10 @@ function MainApp({ onLogout }) {
                   <FieldInput label="Contacto" name="contactName" value={formData.contactName} onChange={handleChange} />
                 </div>
 
-                <FieldInput label="Correo Electrónico Contacto" name="contactEmail" type="email" value={formData.contactEmail} onChange={handleChange} />
+                <div className="two-col-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+                  <FieldInput label="Correo Electrónico Contacto" name="contactEmail" type="email" value={formData.contactEmail} onChange={handleChange} />
+                  <FieldInput label="Teléfono de Contacto" name="contactPhone" type="tel" value={formData.contactPhone} onChange={handleChange} placeholder="Ej: 300 123 4567" />
+                </div>
 
                 <div className="two-col-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
                   <FieldInput label="Software del Sistema" name="payrollSoftwareName" value={formData.payrollSoftwareName} onChange={handleChange} placeholder="Ej: Novasoft, Libra, MIDASOFT, SAP..." />

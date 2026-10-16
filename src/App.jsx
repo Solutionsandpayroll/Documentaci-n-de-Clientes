@@ -103,7 +103,7 @@ const initialFormData = {
   camaraFileName: '',
   camaraFileUrl: '',
   camaraUpdatedAt: '',
-  // Sábana de conceptos (archivo Excel cargado O link de acceso)
+  // Sábana de conceptos (archivo Excel cargado O ruta de acceso)
   sabanaConceptosLink: '',
   sabanaConceptosFileName: '',
   sabanaConceptosFileUrl: '',
@@ -215,6 +215,7 @@ function MainApp({ onLogout }) {
       },
       (err) => {
         console.error('Error escuchando clientes en Firestore:', err);
+        alert('No se pudieron cargar los clientes: ' + err.message);
       }
     );
     return () => unsubscribe();
@@ -673,7 +674,13 @@ function MainApp({ onLogout }) {
 
           .print-full label { color: #000000 !important; font-size: 12.5px !important; font-weight: 700 !important; text-transform: none !important; }
 
-          .print-field-row { display: block !important; font-size: 12.5px; color: #000000; margin: 3px 0; line-height: 1.5; }
+          /* Todo el texto del documento queda como texto real (se puede seleccionar, copiar y pegar) */
+          .print-full, .print-full * {
+            -webkit-user-select: text !important;
+            user-select: text !important;
+          }
+
+          .print-field-row { display: block !important; font-size: 12.5px; color: #000000; margin: 3px 0; line-height: 1.5; word-break: break-all; overflow-wrap: anywhere; }
 
           .print-only-text { display: block !important; }
           .print-only-block { display: block !important; }
@@ -681,6 +688,16 @@ function MainApp({ onLogout }) {
             background: none !important; border: none !important; border-radius: 0 !important; padding: 0 !important;
             font-size: 12.5px !important; color: #000000 !important; line-height: 1.5 !important; text-align: justify;
             white-space: pre-wrap; word-break: break-word; page-break-inside: avoid;
+          }
+
+          /* Ruta de acceso: texto plano, completo y copiable */
+          .print-route-text {
+            display: block !important;
+            font-family: 'Courier New', Consolas, monospace !important;
+            font-size: 12px !important; color: #000000 !important;
+            line-height: 1.5 !important; text-align: left !important;
+            white-space: pre-wrap !important; word-break: break-all !important; overflow-wrap: anywhere !important;
+            margin: 2px 0 6px 0 !important;
           }
 
           .print-form-element { display: none !important; }
@@ -700,7 +717,7 @@ function MainApp({ onLogout }) {
         }
         @media screen {
           .print-logo-header, .print-doc-table { display: none; }
-          .print-only-text, .print-doc-title, .print-section-heading, .print-field-row { display: none; }
+          .print-only-text, .print-doc-title, .print-section-heading, .print-field-row, .print-route-text { display: none; }
           .print-only-block { display: none; }
         }
 
@@ -974,7 +991,12 @@ function MainApp({ onLogout }) {
                 <PrintField label="RUT" value={formData.rutFileName ? `${formData.rutFileName} (actualizado: ${formData.rutUpdatedAt})` : ''} />
                 <PrintField label="Cámara de Comercio" value={formData.camaraFileName ? `${formData.camaraFileName} (actualizado: ${formData.camaraUpdatedAt})` : ''} />
                 <PrintField label="Sábana de Conceptos (archivo)" value={formData.sabanaConceptosFileName ? `${formData.sabanaConceptosFileName} (actualizado: ${formData.sabanaConceptosUpdatedAt})` : ''} />
-                <PrintField label="Sábana de Conceptos (link)" value={formData.sabanaConceptosLink} />
+                {formData.sabanaConceptosLink.trim() && (
+                  <>
+                    <div className="print-field-row"><strong>Ruta de Acceso (Sábana de Conceptos):</strong></div>
+                    <div className="print-route-text">{formData.sabanaConceptosLink}</div>
+                  </>
+                )}
               </div>
             )}
 
@@ -1069,7 +1091,7 @@ function MainApp({ onLogout }) {
                     Sábana de Conceptos
                   </label>
                   <p className="no-print" style={{ fontSize: '12px', color: '#64748b', margin: '0 0 10px 0' }}>
-                    Puedes subir el Excel directamente, o dejar solo el link de acceso si prefieres mantenerlo en SharePoint/Drive.
+                    Puedes subir el Excel directamente, o dejar solo la ruta de acceso si prefieres mantenerlo en SharePoint, Drive o una carpeta de red.
                   </p>
                   <FileUploadField
                     label="Archivo Excel de la Sábana de Conceptos"
@@ -1081,12 +1103,13 @@ function MainApp({ onLogout }) {
                     accept=".xlsx,.xls,.csv"
                     hint="Excel (.xlsx, .xls) o CSV"
                   />
-                  <FieldInput
-                    label="O Link de Acceso (si no subes el archivo)"
+                  <FieldTextarea
+                    label="Ruta de Acceso (si no subes el archivo)"
                     name="sabanaConceptosLink"
                     value={formData.sabanaConceptosLink}
                     onChange={handleChange}
-                    placeholder="Pega aquí el link del Excel (SharePoint, Drive, etc.)"
+                    rows={2}
+                    placeholder="Escribe aquí la ruta de acceso (SharePoint, Drive, carpeta de red, etc.)"
                   />
                 </div>
               </SectionPanel>
@@ -1916,7 +1939,7 @@ function FieldInput({ label, name, value, onChange, type = 'text', placeholder =
   );
 }
 
-function FieldTextarea({ label, name, value, onChange, rows = 3 }) {
+function FieldTextarea({ label, name, value, onChange, rows = 3, placeholder = '' }) {
   return (
     <div style={{ marginBottom: '12px' }}>
       <label style={{ display: 'block', fontSize: '13px', fontWeight: '600', color: '#334155', marginBottom: '6px' }}>
@@ -1927,6 +1950,7 @@ function FieldTextarea({ label, name, value, onChange, rows = 3 }) {
         rows={rows}
         value={value}
         onChange={onChange}
+        placeholder={placeholder}
         style={{ width: '100%', padding: '10px 12px', border: '1px solid #cbd5e1', borderRadius: '8px', fontSize: '13.5px', boxSizing: 'border-box', fontFamily: 'inherit', outline: 'none', resize: 'vertical' }}
       />
     </div>
